@@ -8,6 +8,10 @@ spec:
     storage: 250Gi
   accessModes:
     - ReadWriteMany
+  claimRef:
+    kind: PersistentVolumeClaim
+    name: image-registry-storage
+    namespace: openshift-image-registry
   persistentVolumeReclaimPolicy: Retain
   nfs:
     path: /exports/registry
