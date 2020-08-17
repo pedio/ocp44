@@ -32,3 +32,5 @@ spec:
     requests:
       storage: 250Gi
 EOF
+
+oc patch storageclass thin -p '{"metadata": {"annotations": {"storageclass.kubernetes.io/is-default-class": "false"}}}'
