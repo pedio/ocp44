@@ -14,3 +14,16 @@ spec:
     server: nfshost
     readOnly: false
 EOF
+
+cat <<EOF > pvc_registry.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: registry-storage-pvc
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 250Gi
+EOF
