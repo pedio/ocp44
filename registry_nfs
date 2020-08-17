@@ -2,7 +2,7 @@ cat <<EOF > pv_registry.yaml
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: registry-storage-pv
+  name: image-registry-pv
 spec:
   capacity:
     storage: 250Gi
@@ -23,7 +23,7 @@ cat <<EOF > pvc_registry.yaml
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: registry-storage-pvc
+  name: image-registry-storage
   namespace: openshift-image-registry
 spec:
   accessModes:
