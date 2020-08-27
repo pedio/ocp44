@@ -108,3 +108,190 @@ spec:
       type: "fluentd"
       fluentd: {}
 EOF
+
+
+######## logging pv
+
+cat <<EOF > loggingpv01.yaml
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  annotations:
+    pv.kubernetes.io/bound-by-controller: "yes"
+  name: loggingpv01
+spec:
+  accessModes:
+  - ReadWriteOnce
+  capacity:
+    storage: 250Gi
+  claimRef:
+    kind: PersistentVolumeClaim
+    name: logging-pvc01
+    namespace: openshift-logging
+  persistentVolumeReclaimPolicy: Retain
+  volumeMode: Filesystem
+  vsphereVolume:
+    fsType: ext4
+    volumePath: '[Datastore01] ocpprd/logging-es-1.vmdk'
+EOF
+
+
+cat <<EOF > loggingpv02.yaml
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  annotations:
+    pv.kubernetes.io/bound-by-controller: "yes"
+  name: loggingpv02
+spec:
+  accessModes:
+  - ReadWriteOnce
+  capacity:
+    storage: 250Gi
+  claimRef:
+    kind: PersistentVolumeClaim
+    name: logging-pvc02
+    namespace: openshift-logging
+  persistentVolumeReclaimPolicy: Retain
+  volumeMode: Filesystem
+  vsphereVolume:
+    fsType: ext4
+    volumePath: '[Datastore01] ocpprd/logging-es-2.vmdk'
+EOF
+
+cat <<EOF > loggingpv03.yaml
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  annotations:
+    pv.kubernetes.io/bound-by-controller: "yes"
+  name: loggingpv03
+spec:
+  accessModes:
+  - ReadWriteOnce
+  capacity:
+    storage: 250Gi
+  claimRef:
+    kind: PersistentVolumeClaim
+    name: logging-pvc03
+    namespace: openshift-logging
+  persistentVolumeReclaimPolicy: Retain
+  volumeMode: Filesystem
+  vsphereVolume:
+    fsType: ext4
+    volumePath: '[Datastore01] ocpprd/logging-es-3.vmdk'
+EOF
+
+
+
+
+cat <<EOF > loggingpvc01.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  finalizers:
+  - kubernetes.io/pvc-protection
+  name: logging-pvc01
+  namespace: openshift-logging
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 250Gi
+  volumeMode: Filesystem
+  volumeName: loggingpv01
+EOF
+
+
+cat <<EOF > loggingpvc02.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  finalizers:
+  - kubernetes.io/pvc-protection
+  name: logging-pvc02
+  namespace: openshift-logging
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 250Gi
+  volumeMode: Filesystem
+  volumeName: loggingpv02
+EOF
+
+
+cat <<EOF > loggingpvc03.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  finalizers:
+  - kubernetes.io/pvc-protection
+  name: logging-pvc03
+  namespace: openshift-logging
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 250Gi
+  volumeMode: Filesystem
+  volumeName: loggingpv03
+EOF
+
+
+
+oc set volume deployment/elasticsearch-cdm-8k8z0r1w-1 --add -t pvc --name=elasticsearch-storage --claim-name=logging-pvc01 -c elasticsearch --mount-path=/elasticsearch/persistent --overwrite
+oc set volume deployment/elasticsearch-cdm-8k8z0r1w-2 --add -t pvc --name=elasticsearch-storage --claim-name=logging-pvc02 -c elasticsearch --mount-path=/elasticsearch/persistent --overwrite
+oc set volume deployment/elasticsearch-cdm-8k8z0r1w-3 --add -t pvc --name=elasticsearch-storage --claim-name=logging-pvc03 -c elasticsearch --mount-path=/elasticsearch/persistent --overwrite
+
+oc edit ClusterLogging instance
+
+apiVersion: logging.openshift.io/v1
+kind: ClusterLogging
+
+....
+
+spec:
+  collection:
+    logs:
+      fluentd:
+        resources: null
+      rsyslog:
+        resources: null
+      type: fluentd
+  curation:
+    curator:
+      nodeSelector:
+          node-role.kubernetes.io/infra: ''
+      resources: null
+      schedule: 30 3 * * *
+    type: curator
+  logStore:
+    elasticsearch:
+      nodeCount: 3
+      nodeSelector:
+          node-role.kubernetes.io/infra: ''
+      redundancyPolicy: SingleRedundancy
+      resources:
+        limits:
+          memory: 8Gi
+        requests:
+          cpu: "1"
+          memory: 8Gi
+      storage: {}
+    type: elasticsearch
+  managementState: Managed
+  visualization:
+    kibana:
+      nodeSelector:
+          node-role.kubernetes.io/infra: ''
+      proxy:
+        resources: null
+      replicas: 1
+      resources: null
+    type: kibana
+
+....
