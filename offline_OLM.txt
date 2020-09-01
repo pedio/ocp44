@@ -1,0 +1,564 @@
+
+
+
+
+
+OpenShift4的OperatorHub离线部署方案
+
+
+（OpenShift v4.5版本）
+
+
+
+
+
+
+
+Version 1.0
+ 
+
+
+
+文档属性
+文档属性	内容
+文档名称	OpenShift4的OperatorHub离线部署方案
+内容简述	OpenShift4的OperatorHub离线部署方案
+阅读对象	OpenShift管理员
+生效范围	自本规范发布之日起，新建OpenShift必须遵照执行该规范，其他条线可参考该规范进行配置管理。
+文档版本号	A1
+文档状态	初稿
+文档编写完成日期	2020年8月20日
+作    者	红帽软件
+
+ 
+文档变更历史清单
+文件版本号	修正日期	修正人	备   注
+V1.0	2020/8/20	红帽软件	OpenShift4的OperatorHub离线部署方案
+																		
+
+ 
+目    录
+概述	5
+目的	5
+范围	5
+术语	5
+格式约定	5
+OpenShift4的OperatorHub离线环境部署	6
+通过oc adm catalog build来获取Operator清单和上传Operator清单到bastion镜像仓库	6
+从/tmp/cache-xxxxxxxx获取单个operator镜像列表	7
+同步cluster-logging Operator的镜像	9
+同步elasticsearch Operator的镜像	12
+创建ImageContentSourcePolicy指定从bastion仓库拉取镜像	16
+停用全部OperatorHub	21
+创建离线OperatorHub	21
+删除openshift-marketplace的Pod	22
+创建openshift-logging的project	22
+安装Elasticsearch Operator	22
+安装Cluster Logging Operator	25
+安装EFK聚合日志组件	26
+ 
+1	概述
+1.1	目的
+本文档为已经安装完毕OpenShift4.5环境上OpenShift4的OperatorHub离线部署方案的文档，主要为开发和运维人员提供配置OpenShift4.5环境上的OpenShift4的OperatorHub离线部署过程标准规范。
+1.2	范围
+本文档描述在OpenShift4.5环境上的OpenShift4的OperatorHub离线部署和配置规范及操作过程。
+1.3	术语
+名称	说明
+OperatorHub	为OpenShift v4提供额外的operator用于安装EFK组件。
+	
+	
+1.4	格式约定
+本文以白色背景框展示示例命令，以灰色背景框展示示例配置。以符号"#"起始的命令需要操作系统管理员root权限执行。以符号"$"起始的命令以上下文指定的具体普通用户权限执行。 
+2	OpenShift4的OperatorHub离线环境部署
+2.1	通过oc adm catalog build来获取Operator清单和上传Operator清单到bastion镜像仓库
+使用该命令获取当前ose-operator-registry:v4.5的OperatorHub清单，然后会在/tmp/cache-739865335/ （739865335为数字，每次执行都不一样。等一下我们会从这个目录拿到image的信息），最后获取的信息会上传到bastion的镜像仓库。REG_CREDS变量指定quay/redhat/bastion的为拉取容器的权限json文件。
+# export REG_CREDS=/root/merged_pullsecret.json
+# oc adm catalog build \
+    --appregistry-org redhat-operators \
+    --from=registry.redhat.io/openshift4/ose-operator-registry:v4.5 \
+    --filter-by-os="linux/amd64" \
+    --to=bastion.ocp4.example.com:5000/olm/redhat-operators:v1 \
+    -a ${REG_CREDS}
+我们可以从dir的/tmp/cache-739865335/manifests-561790124里获得operator的镜像清单信息，同时OperatorHub的离线镜像也上传到bastion.ocp4.example.com:5000/olm/redhat-operators:v1。
+命令执行完毕后，后输出如下所示：
+INFO[0055] directory                                     dir=/tmp/cache-739865335/manifests-561790124 file=vertical-pod-autoscaler load=package
+INFO[0055] directory                                     dir=/tmp/cache-739865335/manifests-561790124 file=vertical-pod-autoscaler-3jtr5bcv load=package
+INFO[0055] directory                                     dir=/tmp/cache-739865335/manifests-561790124 file=4.5 load=package
+Uploading ... 11.43MB/s
+Uploading 76.25MB ...
+Uploading 3.509MB ...
+Uploading 9.59MB ...
+Uploading 1.72kB ...
+Uploading 92.3MB ...
+Pushed sha256:ac49718c8b51bb58a2a6c19eacfbbc07b84af037e1802ef1b36adfbb0f72b14c to bastion.ocp4.example.com:5000/olm/redhat-operators:v1
+2.2	从/tmp/cache-xxxxxxxx获取单个operator镜像列表
+找到对应的/tmp/cache-xxxxxxxx目录，找到对应的operator。这里我们找到
+# cd /tmp/cache-739865335/manifests-561790124
+# ls -1
+3scale-operator
+advanced-cluster-management
+amq7-cert-manager
+amq7-interconnect-operator
+amq-broker
+amq-broker-lts
+amq-broker-rhel8
+amq-online
+amq-streams
+apicast-operator
+aws-ebs-csi-driver-operator
+businessautomation-operator
+cam-operator
+cincinnati-operator
+cluster-kube-descheduler-operator
+cluster-logging
+clusterresourceoverride
+codeready-workspaces
+container-security-operator
+datagrid
+dv-operator
+eap
+elasticsearch-operator
+fuse-apicurito
+fuse-console
+fuse-online
+jaeger-product
+kiali-ossm
+kubevirt-hyperconverged
+local-storage-operator
+manila-csi-driver-operator
+metering-ocp
+nfd
+ocs-operator
+openshiftansibleservicebroker
+openshift-pipelines-operator-rh
+openshifttemplateservicebroker
+performance-addon-operator
+ptp-operator
+quay-bridge-operator
+quay-operator
+red-hat-camel-k
+rhsso-operator
+serverless-operator
+servicemeshoperator
+service-registry-operator
+sriov-network-operator
+vertical-pod-autoscaler
+
+# ls -1  *logging* *elastic*
+cluster-logging:
+cluster-logging-bai2ior0
+
+elasticsearch-operator:
+elasticsearch-operator-jo1sv2fn
+2.3	同步cluster-logging Operator的镜像
+进入cluster-logging目录,可以找到cluster-logging.v4.5.0.clusterserviceversion.yaml里面有镜像清单信息。
+# cd cluster-logging/cluster-logging-bai2ior0/4.5
+
+# pwd
+/tmp/cache-739865335/manifests-561790124/cluster-logging/cluster-logging-bai2ior0/4.5
+
+# ls -1
+0100_clusterroles.yaml
+0110_clusterrolebindings.yaml
+cluster-loggings.crd.yaml
+cluster-logging.v4.5.0.clusterserviceversion.yaml
+collectors.crd.yaml
+logforwardings.crd.yaml
+
+# cat cluster-logging.v4.5.0.clusterserviceversion.yaml | less
+
+#grep -o 'image:.*' cluster-logging.*.clusterserviceversion.yaml
+image: registry.redhat.io/openshift4/ose-cluster-logging-operator@sha256:129ff8e16de60d64abcdb05af7da6324bc7a9466d37f330b28942e6048e28846
+image: registry.redhat.io/openshift4/ose-logging-curator5@sha256:c42468e4c69667e6671e8efaa70cf92730667a253b684ef645c70cab71210896
+image: registry.redhat.io/openshift4/ose-logging-fluentd@sha256:1e600cb3f3bab64f1736e1fd7761e3d97b4f2a52ed6aa92c97f26747f9629ac8
+image: registry.redhat.io/openshift4/ose-cluster-logging-operator@sha256:129ff8e16de60d64abcdb05af7da6324bc7a9466d37f330b28942e6048e28846
+保存镜像清单信息到/tmp/registry-images.lst
+# grep -o 'image:.*' cluster-logging.*.clusterserviceversion.yaml | awk '{print $2}' > /tmp/registry-images.lst
+制作/tmp/mapping.txt文件
+# cat /dev/null > /tmp/mapping.txt
+
+  for source in `cat /tmp/registry-images.lst`; do  local=`echo $source|awk -F'@' '{print $1}'|sed 's/registry.redhat.io/bastion.ocp4.example.com:5000/g'`   ; echo "$source=$local" >> /tmp/mapping.txt; done
+找到/tmp/mapping.txt内容如下所示：
+# cat /tmp/mapping.txt
+registry.redhat.io/openshift4/ose-cluster-logging-operator@sha256:129ff8e16de60d64abcdb05af7da6324bc7a9466d37f330b28942e6048e28846=bastion.ocp4.example.com:5000/openshift4/ose-cluster-logging-operator
+registry.redhat.io/openshift4/ose-logging-curator5@sha256:c42468e4c69667e6671e8efaa70cf92730667a253b684ef645c70cab71210896=bastion.ocp4.example.com:5000/openshift4/ose-logging-curator5
+registry.redhat.io/openshift4/ose-logging-fluentd@sha256:1e600cb3f3bab64f1736e1fd7761e3d97b4f2a52ed6aa92c97f26747f9629ac8=bastion.ocp4.example.com:5000/openshift4/ose-logging-fluentd
+registry.redhat.io/openshift4/ose-cluster-logging-operator@sha256:129ff8e16de60d64abcdb05af7da6324bc7a9466d37f330b28942e6048e28846=bastion.ocp4.example.com:5000/openshift4/ose-cluster-logging-operator
+制作/tmp/image-policy.txt
+# cat /dev/null > /tmp/image-policy.txt
+
+  for source in `cat /tmp/registry-images.lst`; do  local=`echo $source|awk -F'@' '{print $1}'|sed 's/registry.redhat.io/bastion.ocp4.example.com:5000/g'` ; mirror=`echo $source|awk -F'@' '{print $1}'`; echo "  - mirrors:" >> /tmp/image-policy.txt; echo "    - $local" >> /tmp/image-policy.txt; echo "    source: $mirror" >> /tmp/image-policy.txt; done
+找到/tmp/image-policy.txt内容如下所示：
+（这段内容可以另存为cp  /tmp/image-policy.txt /tmp/image-policy-logging.txt，稍后设置ImageContentSourcePolicy会用到）
+# cat /tmp/image-policy.txt
+  - mirrors:
+    - bastion.ocp4.example.com:5000/openshift4/ose-cluster-logging-operator
+    source: registry.redhat.io/openshift4/ose-cluster-logging-operator
+  - mirrors:
+    - bastion.ocp4.example.com:5000/openshift4/ose-logging-curator5
+    source: registry.redhat.io/openshift4/ose-logging-curator5
+  - mirrors:
+    - bastion.ocp4.example.com:5000/openshift4/ose-logging-fluentd
+    source: registry.redhat.io/openshift4/ose-logging-fluentd
+  - mirrors:
+    - bastion.ocp4.example.com:5000/openshift4/ose-cluster-logging-operator
+    source: registry.redhat.io/openshift4/ose-cluster-logging-operator
+
+
+通过skopeo copy --all命令可以保证源仓库和目标的digest sha256一致，但是oc image mirror就不行。强烈推荐用skopeo copy --all命令。
+# yum install skopeo -y
+# export REG_CREDS=/root/merged_pullsecret.json
+# for source in `cat /tmp/registry-images.lst`; do  local=`echo $source|awk -F'@' '{print $1}'|sed 's/registry.redhat.io/bastion.ocp4.example.com:5000/g'`   ; HTTP_PROXY=http://squid.corp.redhat.com:3128/  HTTPS_PROXY=http://squid.corp.redhat.com:3128/ NO_PROXY=bastion.ocp4.example.com \
+skopeo copy --authfile $REG_CREDS --all docker://$source docker://$local; done
+2.4	同步elasticsearch Operator的镜像
+
+
+
+
+进入elasticsearch-operator目录,可以找到elasticsearch-operator.v4.5.0.clusterserviceversion.yaml里面有镜像清单信息。
+# cd elasticsearch-operator/elasticsearch-operator-jo1sv2fn/4.5
+
+# pwd
+/tmp/cache-739865335/manifests-561790124/elasticsearch-operator/elasticsearch-operator-jo1sv2fn/4.5
+
+# ls -1
+elasticsearches.crd.yaml
+elasticsearch-operator.v4.5.0.clusterserviceversion.yaml
+kibanas.crd.yaml
+
+# cat elasticsearch-operator.v4.5.0.clusterserviceversion.yaml | less
+
+# grep -o 'image:.*' elasticsearch-operator.*.clusterserviceversion.yaml
+image: registry.redhat.io/openshift4/ose-elasticsearch-operator@sha256:b1463becf264e75e383d8cc33eaa407002499583b40a90eed8b071b627215ed3
+image: registry.redhat.io/openshift4/ose-elasticsearch-proxy@sha256:ebff93f789e9c1eedece39291f0af011cc6d31c81dcb98c261498ded3272dccd
+image: registry.redhat.io/openshift4/ose-logging-elasticsearch6@sha256:f3c6c649bcaacfa1bf7abd4dcebc8b90503adec3c3d72528727e7c2f62ff460a
+image: registry.redhat.io/openshift4/ose-logging-kibana6@sha256:22a8a8a874fc3b0dd188b2cd6607d65eee430c90fae0158e29e61bdaf31ed0f7
+image: registry.redhat.io/openshift4/ose-oauth-proxy@sha256:9c90c5d52b6a024c76d946bdd374383adb48fb01647dccb6e01ae3ebfadab7cd
+image: registry.redhat.io/openshift4/ose-elasticsearch-operator@sha256:b1463becf264e75e383d8cc33eaa407002499583b40a90eed8b071b627215ed3
+保存镜像清单信息到/tmp/registry-images.lst
+# grep -o 'image:.*' elasticsearch-operator.*.clusterserviceversion.yaml | awk '{print $2}' > /tmp/registry-images.lst
+制作/tmp/mapping.txt文件
+# cat /dev/null > /tmp/mapping.txt
+  for source in `cat /tmp/registry-images.lst`; do  local=`echo $source|awk -F'@' '{print $1}'|sed 's/registry.redhat.io/bastion.ocp4.example.com:5000/g'`   ; echo "$source=$local" >> /tmp/mapping.txt; done
+找到/tmp/mapping.txt内容如下所示：
+# cat /tmp/mapping.txt
+registry.redhat.io/openshift4/ose-cluster-logging-operator@sha256:129ff8e16de60d64abcdb05af7da6324bc7a9466d37f330b28942e6048e28846=bastion.ocp4.example.com:5000/openshift4/ose-cluster-logging-operator
+registry.redhat.io/openshift4/ose-logging-curator5@sha256:c42468e4c69667e6671e8efaa70cf92730667a253b684ef645c70cab71210896=bastion.ocp4.example.com:5000/openshift4/ose-logging-curator5
+registry.redhat.io/openshift4/ose-logging-fluentd@sha256:1e600cb3f3bab64f1736e1fd7761e3d97b4f2a52ed6aa92c97f26747f9629ac8=bastion.ocp4.example.com:5000/openshift4/ose-logging-fluentd
+registry.redhat.io/openshift4/ose-cluster-logging-operator@sha256:129ff8e16de60d64abcdb05af7da6324bc7a9466d37f330b28942e6048e28846=bastion.ocp4.example.com:5000/openshift4/ose-cluster-logging-operator
+制作/tmp/image-policy.txt
+# cat /dev/null > /tmp/image-policy.txt
+  for source in `cat /tmp/registry-images.lst`; do  local=`echo $source|awk -F'@' '{print $1}'|sed 's/registry.redhat.io/bastion.ocp4.example.com:5000/g'` ; mirror=`echo $source|awk -F'@' '{print $1}'`; echo "  - mirrors:" >> /tmp/image-policy.txt; echo "    - $local" >> /tmp/image-policy.txt; echo "    source: $mirror" >> /tmp/image-policy.txt; done
+找到/tmp/image-policy.txt内容如下所示：
+(这段内容可以另存为cp  /tmp/image-policy.txt /tmp/image-policy-elastic.txt，稍后设置ImageContentSourcePolicy会用到）
+# cat /tmp/image-policy.txt
+cat /tmp/image-policy.txt
+  - mirrors:
+    - bastion.ocp4.example.com:5000/openshift4/ose-cluster-logging-operator
+    source: registry.redhat.io/openshift4/ose-cluster-logging-operator
+  - mirrors:
+    - bastion.ocp4.example.com:5000/openshift4/ose-logging-curator5
+    source: registry.redhat.io/openshift4/ose-logging-curator5
+  - mirrors:
+    - bastion.ocp4.example.com:5000/openshift4/ose-logging-fluentd
+    source: registry.redhat.io/openshift4/ose-logging-fluentd
+  - mirrors:
+    - bastion.ocp4.example.com:5000/openshift4/ose-cluster-logging-operator
+    source: registry.redhat.io/openshift4/ose-cluster-logging-operator
+通过skopeo copy --all命令可以保证源仓库和目标的digest sha256一致，但是oc image mirror就不行。强烈推荐用skopeo copy --all命令。
+# yum install skopeo -y
+# export REG_CREDS=/root/merged_pullsecret.json
+# for source in `cat /tmp/registry-images.lst`; do  local=`echo $source|awk -F'@' '{print $1}'|sed 's/registry.redhat.io/bastion.ocp4.example.com:5000/g'`   ; HTTP_PROXY=http://squid.corp.redhat.com:3128/  HTTPS_PROXY=http://squid.corp.redhat.com:3128/ NO_PROXY=bastion.ocp4.example.com \
+skopeo copy --authfile $REG_CREDS --all docker://$source docker://$local; done
+2.5	Playbook执行完毕后，在每一台Master节点上重启controllers和api的容器。
+# cat <<EOF | oc create -f -
+apiVersion: operators.coreos.com/v1alpha1
+kind: CatalogSource
+metadata:
+  name: my-operator-catalog
+  namespace: openshift-marketplace
+spec:
+  sourceType: grpc
+  image: bastion.ocp4.example.com:5000/olm/redhat-operators:v1 
+  displayName: My Operator Catalog
+  publisher: grpc
+EOF
+2.6	创建ImageContentSourcePolicy指定从bastion仓库拉取镜像
+注意：创建imageContentSourcePolicy后全部机器会重启，相关registry.redhat.io的镜像拉取时，OpenShift4会优先读取bastion.ocp4.example.com:5000的mirror镜像仓库。
+
+ImageContentSourcePolicy创建方法有3种，按照需求挑选一种。
+
+方法1：针对单个Operator制作imageContentSourcePolicy
+通过oc create -f创建imageContentSourcePolicy
+将/tmp/image-policy-elastic.txt和/tmp/image-policy-logging.txt合并添加到repositoryDigestMirrors:下面
+# cat /tmp/image-policy-*
+  - mirrors:
+    - bastion.ocp4.example.com:5000/openshift4/ose-elasticsearch-operator
+    source: registry.redhat.io/openshift4/ose-elasticsearch-operator
+  - mirrors:
+    - bastion.ocp4.example.com:5000/openshift4/ose-elasticsearch-proxy
+    source: registry.redhat.io/openshift4/ose-elasticsearch-proxy
+  - mirrors:
+    - bastion.ocp4.example.com:5000/openshift4/ose-logging-elasticsearch6
+    source: registry.redhat.io/openshift4/ose-logging-elasticsearch6
+  - mirrors:
+    - bastion.ocp4.example.com:5000/openshift4/ose-logging-kibana6
+    source: registry.redhat.io/openshift4/ose-logging-kibana6
+  - mirrors:
+    - bastion.ocp4.example.com:5000/openshift4/ose-oauth-proxy
+    source: registry.redhat.io/openshift4/ose-oauth-proxy
+  - mirrors:
+    - bastion.ocp4.example.com:5000/openshift4/ose-elasticsearch-operator
+    source: registry.redhat.io/openshift4/ose-elasticsearch-operator
+  - mirrors:
+    - bastion.ocp4.example.com:5000/openshift4/ose-cluster-logging-operator
+    source: registry.redhat.io/openshift4/ose-cluster-logging-operator
+  - mirrors:
+    - bastion.ocp4.example.com:5000/openshift4/ose-logging-curator5
+    source: registry.redhat.io/openshift4/ose-logging-curator5
+  - mirrors:
+    - bastion.ocp4.example.com:5000/openshift4/ose-logging-fluentd
+    source: registry.redhat.io/openshift4/ose-logging-fluentd
+  - mirrors:
+    - bastion.ocp4.example.com:5000/openshift4/ose-cluster-logging-operator
+    source: registry.redhat.io/openshift4/ose-cluster-logging-operator
+创建/tmp/ImageContentSourcePolicy.yaml文件。
+# cat <<EOF > /tmp/ImageContentSourcePolicy.yaml
+apiVersion: operator.openshift.io/v1alpha1
+kind: ImageContentSourcePolicy
+metadata:
+  name: redhat-operators
+spec:
+  repositoryDigestMirrors:
+  - mirrors:
+    - bastion.ocp4.example.com:5000/openshift4/ose-elasticsearch-operator
+    source: registry.redhat.io/openshift4/ose-elasticsearch-operator
+  - mirrors:
+    - bastion.ocp4.example.com:5000/openshift4/ose-elasticsearch-proxy
+    source: registry.redhat.io/openshift4/ose-elasticsearch-proxy
+  - mirrors:
+    - bastion.ocp4.example.com:5000/openshift4/ose-logging-elasticsearch6
+    source: registry.redhat.io/openshift4/ose-logging-elasticsearch6
+  - mirrors:
+    - bastion.ocp4.example.com:5000/openshift4/ose-logging-kibana6
+    source: registry.redhat.io/openshift4/ose-logging-kibana6
+  - mirrors:
+    - bastion.ocp4.example.com:5000/openshift4/ose-oauth-proxy
+    source: registry.redhat.io/openshift4/ose-oauth-proxy
+  - mirrors:
+    - bastion.ocp4.example.com:5000/openshift4/ose-elasticsearch-operator
+    source: registry.redhat.io/openshift4/ose-elasticsearch-operator
+  - mirrors:
+    - bastion.ocp4.example.com:5000/openshift4/ose-cluster-logging-operator
+    source: registry.redhat.io/openshift4/ose-cluster-logging-operator
+  - mirrors:
+    - bastion.ocp4.example.com:5000/openshift4/ose-logging-curator5
+    source: registry.redhat.io/openshift4/ose-logging-curator5
+  - mirrors:
+    - bastion.ocp4.example.com:5000/openshift4/ose-logging-fluentd
+    source: registry.redhat.io/openshift4/ose-logging-fluentd
+  - mirrors:
+    - bastion.ocp4.example.com:5000/openshift4/ose-cluster-logging-operator
+    source: registry.redhat.io/openshift4/ose-cluster-logging-operator
+EOF
+使用oc apply -f生效。
+# oc apply -f /tmp/ImageContentSourcePolicy.yaml
+
+方法2：针对registry.redhat.io/openshift4/制作imageContentSourcePolicy
+创建/tmp/ImageContentSourcePolicy.yaml文件。
+# cat <<EOF > /tmp/ImageContentSourcePolicy.yaml
+apiVersion: operator.openshift.io/v1alpha1
+kind: ImageContentSourcePolicy
+metadata:
+  name: redhat-operators
+spec:
+  repositoryDigestMirrors:
+  - mirrors:
+    - bastion.ocp4.example.com:5000/openshift4/
+    source: registry.redhat.io/openshift4/
+EOF
+使用oc apply -f生效。
+# oc apply -f /tmp/ImageContentSourcePolicy.yaml
+
+方法3：使用下面命令从bastion.ocp4.example.com:5000/olm/redhat-operators:v1镜像中生成redhat-operators-manifests文件，这里面的operator最全。
+# export REG_CREDS=/root/merged_pullsecret.json
+# oc adm catalog mirror \
+    bastion.ocp4.example.com:5000/olm/redhat-operators:v1 \
+    bastion.ocp4.example.com:5000 \
+    -a ${REG_CREDS} \
+    --insecure \
+    --filter-by-os="linux/amd6" \
+    --manifests-only
+# cat redhat-operators-manifests/imageContentSourcePolicy.yaml
+apiVersion: operator.openshift.io/v1alpha1
+kind: ImageContentSourcePolicy
+metadata:
+  name: redhat-operators
+spec:
+  repositoryDigestMirrors:
+  - mirrors:
+    - bastion.ocp4.example.com:5000/rhscl/postgresql-96-rhel7
+    source: registry.redhat.io/rhscl/postgresql-96-rhel7
+  - mirrors:
+    - bastion.ocp4.example.com:5000/openshift4/ose-oauth-proxy
+    source: registry.redhat.io/openshift4/ose-oauth-proxy
+  - mirrors:
+    - bastion.ocp4.example.com:5000/openshift-service-mesh/grafana-rhel8
+    source: registry.redhat.io/openshift-service-mesh/grafana-rhel8
+  - mirrors:
+    - bastion.ocp4.example.com:5000/openshift-service-mesh/proxyv2-rhel8
+    source: registry.redhat.io/openshift-service-mesh/proxyv2-rhel8
+  - mirrors:
+    - bastion.ocp4.example.com:5000/openshift4/ose-logging-elasticsearch5
+    source: registry.redhat.io/openshift4/ose-logging-elasticsearch5
+...
+使用oc apply -f生效。
+# oc apply -f /root/redhat-operators-manifests/imageContentSourcePolicy.yaml
+2.7	停用全部OperatorHub
+使用下面命令停用全部连线的OperatorHub
+# oc patch OperatorHub cluster --type json \
+    -p '[{"op": "add", "path": "/spec/disableAllDefaultSources", "value": true}]'
+2.8	创建离线OperatorHub
+使用下面命令创建my-operator-catalog的离线OperatorHub。
+# cat <<EOF | oc create -f -
+apiVersion: operators.coreos.com/v1alpha1
+kind: CatalogSource
+metadata:
+  name: my-operator-catalog
+  namespace: openshift-marketplace
+spec:
+  sourceType: grpc
+  image: bastion.ocp4.example.com:5000/olm/redhat-operators:v1 
+  displayName: My Operator Catalog
+  publisher: grpc
+EOF
+2.9	删除openshift-marketplace的Pod
+快速使离线OperatorHub生效，请手工删除openshift-marketplace的Pod
+# oc delete pod --all -n openshift-marketplace
+
+pod "marketplace-operator-754857b7d8-bw7rl" deleted
+pod "my-operator-catalog-nbf5p" deleted
+2.10	创建openshift-logging的project
+通过oc create创建openshift-logging为logging和elasticsearch使用。
+# cat <<EOF | oc create -f -
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: openshift-logging 
+  annotations:
+    openshift.io/node-selector: "" 
+  labels:  
+    openshift.io/cluster-logging: "true"
+    openshift.io/cluster-monitoring: "true"
+EOF
+
+namespace/openshift-logging created
+2.11	安装Elasticsearch Operator
+通过web界面安装。
+首先，找到OperatorHub搜索elastic。
+ 
+选择对应的4.5版本点击install。
+ 
+
+ 
+通过命令行安装。
+# cat <<EOF | oc apply -f -
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: "elasticsearch-operator"
+  namespace: "openshift-operators-redhat"
+spec:
+  channel: "4.5"
+  installPlanApproval: "Automatic"
+  source: "my-operator-catalog"
+  sourceNamespace: "openshift-marketplace"
+  name: "elasticsearch-operator"
+EOF
+2.12	安装Cluster Logging Operator
+通过web界面安装，和elasticsearch方法一样，这里不做截图详述。
+首先，找到OperatorHub搜索logging，选择对应的4.5版本点击install。
+
+
+通过命令行安装。
+# cat <<EOF | oc apply -f -
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: "cluster-logging"
+  namespace: "openshift-logging"
+spec:
+  channel: "4.5"
+  installPlanApproval: "Automatic"
+  source: "my-operator-catalog"
+  sourceNamespace: "openshift-marketplace"
+  name: "cluster-logging"
+EOF
+2.13	安装EFK聚合日志组件
+使用oc create命令，通过创建ClusterLogging部署EFK服务。
+# cat <<EOF | oc create -f -
+apiVersion: "logging.openshift.io/v1"
+kind: "ClusterLogging"
+metadata:
+  name: "instance"
+  namespace: "openshift-logging"
+spec:
+  managementState: "Managed"
+  logStore:
+    type: "elasticsearch"
+    elasticsearch:
+      nodeCount: 2
+      resources:
+        limits:
+          memory: 2Gi
+        requests:
+          cpu: 200m
+          memory: 2Gi
+      storage: {}
+      redundancyPolicy: "SingleRedundancy"
+  visualization:
+    type: "kibana"
+    kibana:
+      resources:
+        limits:
+          memory: 1Gi
+        requests:
+          cpu: 500m
+          memory: 1Gi
+      replicas: 1
+  curation:
+    type: "curator"
+    curator:
+      resources:
+        limits:
+          memory: 200Mi
+        requests:
+          cpu: 200m
+          memory: 200Mi
+      schedule: "*/5 * * * *"
+  collection:
+    logs:
+      type: "fluentd"
+      fluentd:
+        resources:
+          limits:
+            memory: 1Gi
+          requests:
+            cpu: 200m
+            memory: 1Gi
+EOF
+使用oc get pods确认是否部署成功。
+# oc get pods -n openshift-logging
+NAME                                            READY   STATUS    RESTARTS   AGE
+cluster-logging-operator-657b5d689-ntmsz        1/1     Running   0          2m23s
+elasticsearch-cdm-15o9fp5e-1-5475888774-gcklz   2/2     Running   0          87s
+elasticsearch-cdm-15o9fp5e-2-698bc55b6-ktt8f    2/2     Running   0          83s
+fluentd-6b92g                                   1/1     Running   0          88s
+fluentd-7hqnw                                   1/1     Running   0          89s
+fluentd-jczfx                                   1/1     Running   0          88s
+fluentd-kv2g2                                   1/1     Running   0          88s
+fluentd-r4pnk                                   1/1     Running   0          88s
+fluentd-xb5cg                                   1/1     Running   0          88s
+kibana-584df95cc4-qjxs7                         2/2     Running   0          80s
+
+
