@@ -1,0 +1,82 @@
+cat <<EOF | oc apply -f -
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: openshift-operators-redhat
+  annotations:
+    openshift.io/node-selector: ""
+  labels:
+    openshift.io/cluster-monitoring: "true"
+EOF
+
+
+cat <<EOF | oc apply -f -
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: openshift-operators-redhat
+  namespace: openshift-operators-redhat
+spec: {}
+EOF
+
+
+cat <<EOF | oc apply -f -
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: "elasticsearch-operator"
+  namespace: "openshift-operators-redhat"
+spec:
+  channel: "4.4"
+  installPlanApproval: "Automatic"
+  source: "redhat-operators"
+  sourceNamespace: "openshift-marketplace"
+  name: "elasticsearch-operator"
+EOF
+
+
+oc get csv --all-namespaces
+
+
+cat <<EOF | oc apply -f -
+apiVersion: "logging.openshift.io/v1"
+kind: "ClusterLogging"
+metadata:
+  name: "instance"
+  namespace: "openshift-logging"
+spec:
+  managementState: "Managed"
+  logStore:
+    type: "elasticsearch"
+    elasticsearch:
+      nodeSelector:
+        node-role.kubernetes.io/master: ''
+      resources:
+        limits:
+          memory: "4Gi"
+        requests:
+          cpu: "500m"
+          memory: "4Gi"
+      nodeCount: 3
+      storage:
+        size: 50Gi
+        storageClassName: static
+      redundancyPolicy: "SingleRedundancy"
+  visualization:
+    type: "kibana"
+    kibana:
+      nodeSelector:
+        node-role.kubernetes.io/master: ''
+      replicas: 1
+  curation:
+    type: "curator"
+    curator:
+      nodeSelector:
+        node-role.kubernetes.io/master: ''
+      schedule: "30 3 * * *"
+  collection:
+    logs:
+      type: "fluentd"
+      fluentd: {} 
+EOF
+
