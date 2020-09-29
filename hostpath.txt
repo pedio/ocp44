@@ -1,0 +1,128 @@
+cat <<EOF | oc apply -f -
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: hostpv01
+  labels:
+    type: local
+spec:
+  storageClassName: static
+  capacity:
+    storage: 50Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  hostPath:
+    path: "/mnt/es"
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: kubernetes.io/hostname
+          operator: In
+          values:
+          - cp01.aio.cheers.local
+EOF
+
+cat <<EOF | oc apply -f -
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: hostpv02
+  labels:
+    type: local
+spec:
+  storageClassName: static
+  capacity:
+    storage: 50Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  hostPath:
+    path: "/mnt/es"
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: kubernetes.io/hostname
+          operator: In
+          values:
+          - cp02.aio.cheers.local
+EOF
+
+cat <<EOF | oc apply -f -
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: hostpv03
+  labels:
+    type: local
+spec:
+  storageClassName: static
+  capacity:
+    storage: 50Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  hostPath:
+    path: "/mnt/es"
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: kubernetes.io/hostname
+          operator: In
+          values:
+          - cp03.aio.cheers.local
+EOF
+
+
+cat <<EOF | oc apply -f -
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: logging-es-1
+  namespace: openshift-logging
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Gi
+EOF
+
+cat <<EOF | oc apply -f -
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: logging-es-1
+  namespace: openshift-logging
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Gi
+EOF
+
+cat <<EOF | oc apply -f -
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: logging-es-1
+  namespace: openshift-logging
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Gi
+EOF
+
+https://hackmd.io/7zGSOmwpQOubt1MSUAZCkw
+
+oc adm policy add-scc-to-user privileged -z elasticsearch -n openshift-logging
+
+Edit the 3 Deployments of elasticsearch and add the following lines in the container spec: ```
+          securityContext:
+            privileged: true
