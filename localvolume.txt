@@ -34,6 +34,7 @@ oc patch ds local-storage-local-diskmaker -n local-storage -p '{"spec": {"templa
 oc patch ds local-storage-local-provisioner -n local-storage -p '{"spec": {"template": {"spec": {"tolerations":[{"operator": "Exists"}]}}}}'
 
 
+
 cat <<EOF | oc apply -f -
 apiVersion: "local.storage.openshift.io/v1"
 kind: "LocalVolume"
@@ -48,7 +49,6 @@ spec:
           operator: In
           values:
           - cp03.aio.cheers.local
-  persistentVolumeReclaimPolicy: Retain
   storageClassDevices:
     - storageClassName: "local-sc"
       volumeMode: Filesystem 
@@ -71,7 +71,6 @@ spec:
           operator: In
           values:
           - cp02.aio.cheers.local
-  persistentVolumeReclaimPolicy: Retain
   storageClassDevices:
     - storageClassName: "local-sc"
       volumeMode: Filesystem 
@@ -95,7 +94,6 @@ spec:
           operator: In
           values:
           - cp01.aio.cheers.local
-  persistentVolumeReclaimPolicy: Retain
   storageClassDevices:
     - storageClassName: "local-sc"
       volumeMode: Filesystem 
@@ -104,4 +102,7 @@ spec:
         - /dev/sdb
 EOF
 
-oc patch pv <your-pv-name> -p '{"spec":{"persistentVolumeReclaimPolicy":"Retain"}}'
+
+oc patch pv local-pv-ddb35c22 -p '{"spec":{"persistentVolumeReclaimPolicy":"Retain"}}'
+
+
