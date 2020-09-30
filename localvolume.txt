@@ -103,3 +103,5 @@ spec:
       devicePaths: 
         - /dev/sdb
 EOF
+
+oc patch pv <your-pv-name> -p '{"spec":{"persistentVolumeReclaimPolicy":"Retain"}}'
